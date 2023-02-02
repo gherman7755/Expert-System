@@ -22,6 +22,28 @@ except NameError:
         return new_lst
 
 
+def setFacts(rules, hypothesis):
+    facts = FactSet()
+    backward_chain(rules, hypothesis, facts)
+    results = set(facts.set_of_facts)
+    cons = set(facts.set_of_consequents)
+    facts.clearAll()
+    
+    formattedFacts = set()
+    
+    
+    # for con in cons:
+    #     values_dict = match(con, hypothesis)
+    #     if values_dict != None:
+    #         for result in results:
+    #             formattedFacts.add(instantiate(result, values_dict))
+    
+    formattedFacts = set(instantiate(result, values_dict)
+                         for con in cons if (values_dict := match(con, hypothesis))
+                         for result in results)
+    
+    return formattedFacts
+
 ### We've tried to keep the functions you will need for
 ### back-chaining at the top of this file. Keep in mind that you
 ### can get at this documentation from a Python prompt:
@@ -53,7 +75,7 @@ def forward_chain(rules, data, apply_only_one=False, verbose=False):
     return data
 
 
-def backward_chain(rules, hypothesis, verbose=False):
+def backward_chain(rules, hypothesis, fact_set, verbose=False):
     """
     Outputs the goal tree from having rules and hyphothesis, works like an "encyclopedia"
     """
@@ -64,12 +86,13 @@ def backward_chain(rules, hypothesis, verbose=False):
         l = [match(list(condition.consequent())[0], hypo) != None for condition in rules]
         try:
             condition_index = l.index(True)
-            print(hypo)
+            fact_set.addElement(hypo)
+            fact_set.addConsequent(list(rules[condition_index].consequent())[0])
         except ValueError:
-            print(hypo)
+            fact_set.addElement(hypo)
             return None
         for ant in list(rules[condition_index].antecedent()):
-            backward_chain(rules, ant)
+            backward_chain(rules, ant, fact_set)
             
     return ""
 
@@ -130,7 +153,31 @@ def variables(exp):
     except AttributeError: # The re.match() expression probably
                            # just returned None
         return None
+
+class FactSet:
+    def __init__(self):
+        self.set_of_facts = set()
+        self.set_of_consequents = set()
         
+    def addElement(self, element):
+        self.set_of_facts.add(element)
+    
+    def _clearSet(self):
+        self.set_of_facts.clear()
+    
+    def applyTemplate(self, template):
+        pass
+    
+    def addConsequent(self, element):
+        self.set_of_consequents.add(element)
+        
+    def _clearConsequent(self):
+        self.set_of_consequents.clear()
+        
+    def clearAll(self):
+        self._clearConsequent()
+        self._clearSet()
+     
 class IF(object):
     """
     A conditional rule.

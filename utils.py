@@ -112,10 +112,3 @@ def AIStringVars(AIStr):
     # This is not the fastest way of doing things, but
     # it is probably the most explicit and robust
     return set([ AIRegex.sub(r'\1', x) for x in AIRegex.findall(AIStr) ])
-
-if __name__ == "__main__":
-    def lala():
-        for i in range(10):
-            yield i
-            print(i)
-    print(lala())
