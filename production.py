@@ -94,7 +94,7 @@ def backward_chain(rules, hypothesis, fact_set, verbose=False):
         for ant in list(rules[condition_index].antecedent()):
             backward_chain(rules, ant, fact_set)
             
-    return ""
+    return None
 
 
 def instantiate(template, values_dict):
