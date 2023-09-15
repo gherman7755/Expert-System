@@ -1,6 +1,6 @@
 from rules import CITIZEN_RULES
 from collections import defaultdict
-from pprint import pprint as print
+# from pprint import pprint as print
 
 
 class Occurance:
@@ -13,6 +13,7 @@ class Occurance:
         self.consequents = set()
         self.type_counts = defaultdict(int)
         self.questions_to_ask = []
+        self.antecedents = set()
         
         self.fullFill()
         self.findConsequents()
@@ -26,6 +27,12 @@ class Occurance:
         for rule in self.citizen_rules:
             self.consequents.add(list(rule.consequent())[0])
         self.all_rules -= self.consequents
+    
+
+    def findAntecedents(self):
+        for rule in self.citizen_rules:
+            self.antecedents.add(list(rule.antecedent())[0])
+            
     
     
     def clear(self):
@@ -45,12 +52,12 @@ class Occurance:
 
     def setNeedless(self, element):
         self.occurances[element] = False
-
+        
     
     def calculateProbability(self):
         self.probability = dict()
         for rule in self.all_rules:
-            if self.occurances[rule] is False:
+            if self.occurances[rule] is False or self.occurances[rule] is True:
                 self.probability[rule] = 0
                 continue
             rule_probability_counter = sum(
@@ -75,10 +82,18 @@ class Occurance:
             self.type_counts[key] = round(value / len(self.all_rules) / 10, 3)
     
     
+    def updateOccurance(self):
+        for rule, res in self.occurances.items():
+            if res is True:
+                for key, value in self.occurances.items():
+                    if value is None and key.split()[-1] == rule.split()[-1]:
+                        self.occurances[key] = False
+                    
+    
     def calculateEffectivness(self):
         for key, value in self.probability.items():
             last_word = key.split()[-1]
-            if self.occurances[key] == False:
+            if self.occurances[key] == False or self.occurances[key] == True:
                 continue
             self.probability[key] = round(value + self.type_counts.get(last_word, 0), 3)
 
@@ -87,7 +102,7 @@ class Occurance:
         self.questions_to_ask = []
         max_value = max(self.probability.values())
         max_rules = [k for k, v in self.probability.items() if v == max_value and self.occurances[k] is not True]
-    
+        
         max_key = max((k.split()[-1], k) for k in max_rules)[1].split()[-1]
     
         self.questions_to_ask = [rule for rule in max_rules if max_key in rule]
@@ -113,7 +128,6 @@ class Occurance:
             output_strings["type"] = "m"
             for question in self.questions_to_ask:
                 output_strings["variants_of_answers"].append(question)
-            output_strings["variants_of_answers"].append("I don't know")
 
         return output_strings
 
@@ -124,11 +138,10 @@ class Occurance:
 
         from production import populate
 
-        print(output.get("title"))
-
         if output["type"] == "s":
+            print("Answer yes/no:\n")
             question = "Does " + populate(output["question"], {"x":name}) + "?"
-            answer = input(f"{question}\n")
+            answer = input(f"{question}\nYour answer is: ")
             
             if answer in yeses:
                 self.setOccured(output["question"])
@@ -136,21 +149,68 @@ class Occurance:
                 self.setNeedless(output["question"])
 
         else:
+            print("Answer with number of variant:\n")
             question = [f"{i + 1}. Does " + populate(e, {"x":name}) + "?" for i, e in enumerate(output["variants_of_answers"])]
-            answer = int(input("\n".join(question)))
             
-            if answer == len(output['variants_of_answers']):
+            try:
+                answer = int(input("\n".join(question) + "\nYour answer is: "))
+                
+                for element in output["variants_of_answers"]:
+                    if element != output["variants_of_answers"][answer - 1]:
+                        self.setNeedless(element)
+                    else:
+                        self.setOccured(element)
+                    self.probability.pop(element)
+            except ValueError:
                 for element in output["variants_of_answers"]:
                     self.setNeedless(element)
+                    self.probability.pop(element)
             
-            for element in output["variants_of_answers"]:
-                if element != output["variants_of_answers"][answer - 1]:
-                    self.setNeedless(element)
-                else:
-                    self.setOccured(element)
+            # for element in output["variants_of_answers"]:
+            #     if element != output["variants_of_answers"][answer - 1]:
+            #         self.setNeedless(element)
+            #     else:
+            #         self.setOccured(element)
         
         # print(self.probability)
 
+    
+    def start(self, name):
+        from production import run_conditions, instantiate, match
+        
+        result = ()
+        answer_is_found = False
+        rules_forward = set()
+        
+        self.fullFill()
+        self.findConsequents()
+        self.findAntecedents()
+        
+        while True:
+            self.findTypes()
+            self.calculateProbability()
+            self.calculateEffectivness()
+            self.findBestCharacteristics()
+            print(30*"-")
+            self.askQuestion(self.makeQuestion(), name)
+            self.updateOccurance()
+            
+            for fact in self.occurances:
+                if self.occurances[fact] is True:
+                    rules_forward.add(instantiate(fact, {"x":name}))
+            result = run_conditions(CITIZEN_RULES, rules_forward)
+            
+            # print(result)
+            
+            for element in result:
+                if element.replace(name, "(?x)") not in self.antecedents and element.replace(name, "(?x)") in self.consequents:
+                    print("Match found: " + instantiate(element, {"x":name}) + "!!!!!")
+                    answer_is_found = True
+                    break
+            
+            if answer_is_found:
+                break
+            
 
     def doSomething(self):
         pass
@@ -158,14 +218,9 @@ class Occurance:
 
 if __name__ == "__main__":
     occ = Occurance(CITIZEN_RULES)
+    occ.start("mark")
     # for key, value in occ.probability.items():
     #     print(key, value)
-    while True:
-        # occ.askQuestion(occ.makeQuestion(), "mark")
-        occ.findTypes()
-        occ.calculateProbability()
-        occ.calculateEffectivness()
-        occ.findBestCharacteristics()
-        occ.askQuestion(occ.makeQuestion(), "mark")
-        print(occ.occurances)
+    # occ.askQuestion(occ.makeQuestion(), "mark")
+    # print(occ.occurances)
     
